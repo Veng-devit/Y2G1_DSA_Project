@@ -12,6 +12,7 @@ void displayMenu() {
     cout << "3. View All Components" << endl;
     cout << "4. Delete Component" << endl;
     cout << "5. Process Sale" << endl;
+    cout << "6. Sort Inventory" << endl;  // NEW: Added sort option
     cout << "0. Exit" << endl;
     cout << "Choose option: ";
 }
@@ -24,10 +25,10 @@ int getMenuOption() {
         
         try {
             int choice = stoi(input);
-            if (choice >= 0 && choice <= 5) {
+            if (choice >= 0 && choice <= 6) {  // Changed from 5 to 6
                 return choice;
             } else {
-                cout << "Please enter 0-5!" << endl;
+                cout << "Please enter 0-6!" << endl;  // Updated from 0-5 to 0-6
             }
         } catch (...) {
             cout << "Please enter a valid number!" << endl;
@@ -74,6 +75,10 @@ int main() {
             case 5:
                 cout << "[5] PROCESS SALES\n\n";
                 sales.processSale();
+                break;
+            case 6:  // NEW: Sort inventory
+                cout << "[6] SORT INVENTORY\n\n";
+                inventory.sortInventory();
                 break;
             case 0:
                 inventory.saveToFile("component_list.csv");

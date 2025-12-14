@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cctype>
 #include <iomanip>
+#include <vector>
 using namespace std;
 
 #ifdef _WIN32
@@ -21,6 +22,8 @@ class Inventory
 private:
     Component *head;
     Component *tail;
+    Component *searchResultsHead;
+    Component *searchResultsTail;
 
     // Helper methods
     Component *findComponent(const string &name)
@@ -38,6 +41,54 @@ private:
         }
         return nullptr;
     }
+    
+    vector<Component*> findComponentsBySubstring(const string &substr) {
+        vector<Component*> results;
+        Component *current = head;
+        string upperSubstr = Component::toUpperCase(substr);
+        
+        while (current != nullptr) {
+            string upperName = Component::toUpperCase(current->getName());
+            if (upperName.find(upperSubstr) != string::npos) {
+                results.push_back(current);
+            }
+            current = current->getNext();
+        }
+        return results;
+    }
+    
+    void createSearchResultsList(const vector<Component*>& results) {
+        clearSearchResults();
+        
+        if (results.empty()) {
+            searchResultsHead = searchResultsTail = nullptr;
+            return;
+        }
+        
+        for (Component* original : results) {
+            Component* copy = new Component(original->getName(), 
+                                           original->getQuantity(), 
+                                           original->getPrice());
+            
+            if (searchResultsHead == nullptr) {
+                searchResultsHead = searchResultsTail = copy;
+            } else {
+                searchResultsTail->setNext(copy);
+                searchResultsTail = copy;
+            }
+        }
+    }
+    
+    void clearSearchResults() {
+        Component* current = searchResultsHead;
+        while (current != nullptr) {
+            Component* next = current->getNext();
+            delete current;
+            current = next;
+        }
+        searchResultsHead = searchResultsTail = nullptr;
+    }
+    
     void inputName(string &name, int option)
     {
         while (true)
@@ -46,10 +97,8 @@ private:
                                                                                                   : "Enter the name of the component: ");
             getline(cin, name);
 
-            // Convert to uppercase
             name = Component::toUpperCase(name);
 
-            // Validation
             if (name.empty())
             {
                 cout << "Please input name of the component!!\n";
@@ -122,6 +171,8 @@ private:
             }
         }
     }
+    
+    // REMOVED: The prompts for sort options from getYesNoOption function
     char getYesNoOption(int caseType, char opt1, char opt2)
     {
         string input;
@@ -140,7 +191,9 @@ private:
             "Do you want to make change the quantity you buy (Y/N): ",
             "Are you accept for this buy (Y/N): ",
             "Do you want to buy other component or take some component out [(A)dd or (D)elete]: ",
-            "Do you want to delete other component from the list you buy (Y/N): "};
+            "Do you want to delete other component from the list you buy (Y/N): ",
+            // REMOVED sort prompts from here
+            "Do you want to delete a found component (Y/N): "};
 
         while (true)
         {
@@ -158,12 +211,294 @@ private:
             cout << "Please enter only '" << opt1 << "' or '" << opt2 << "'!\n";
         }
     }
+    
+    // NEW: Function to get sort choice with multiple options
+    char getSortChoice(const string& prompt, const vector<char>& validChoices) {
+        string input;
+        while (true) {
+            cout << prompt;
+            getline(cin, input);
+            
+            if (input.length() == 1) {
+                char choice = toupper(input[0]);
+                for (char valid : validChoices) {
+                    if (choice == valid) {
+                        return choice;
+                    }
+                }
+            }
+            
+            cout << "Please enter a valid choice (";
+            for (size_t i = 0; i < validChoices.size(); i++) {
+                cout << validChoices[i];
+                if (i < validChoices.size() - 1) cout << "/";
+            }
+            cout << "): ";
+        }
+    }
+    
+    // SIMPLE BUBBLE SORT for linked list
+    void bubbleSort(int sortBy, bool ascending) {
+        if (head == nullptr || head->getNext() == nullptr) return;
+        
+        bool swapped;
+        int listSize = getListSize();
+        
+        // Bubble sort outer loop
+        for (int i = 0; i < listSize - 1; i++) {
+            swapped = false;
+            Component* current = head;
+            Component* prev = nullptr;
+            
+            // Inner loop - compare adjacent nodes
+            for (int j = 0; j < listSize - i - 1; j++) {
+                Component* nextNode = current->getNext();
+                
+                if (nextNode == nullptr) break;
+                
+                // Determine if we need to swap based on sort criteria
+                bool shouldSwap = false;
+                
+                if (sortBy == 0) { // Sort by Name
+                    string name1 = current->getName();
+                    string name2 = nextNode->getName();
+                    
+                    if (ascending) {
+                        shouldSwap = name1 > name2;
+                    } else {
+                        shouldSwap = name1 < name2;
+                    }
+                } 
+                else if (sortBy == 1) { // Sort by Quantity
+                    int qty1 = current->getQuantity();
+                    int qty2 = nextNode->getQuantity();
+                    
+                    if (ascending) {
+                        shouldSwap = qty1 > qty2;
+                    } else {
+                        shouldSwap = qty1 < qty2;
+                    }
+                } 
+                else { // Sort by Price
+                    float price1 = current->getPrice();
+                    float price2 = nextNode->getPrice();
+                    
+                    if (ascending) {
+                        shouldSwap = price1 > price2;
+                    } else {
+                        shouldSwap = price1 < price2;
+                    }
+                }
+                
+                // Swap nodes if needed
+                if (shouldSwap) {
+                    // Swap the nodes
+                    current->setNext(nextNode->getNext());
+                    nextNode->setNext(current);
+                    
+                    // Update previous pointer
+                    if (prev == nullptr) {
+                        head = nextNode;
+                    } else {
+                        prev->setNext(nextNode);
+                    }
+                    
+                    // Update tail if necessary
+                    if (current->getNext() == nullptr) {
+                        tail = current;
+                    }
+                    
+                    // Update pointers for next iteration
+                    prev = nextNode;
+                    swapped = true;
+                } else {
+                    // No swap, move pointers forward
+                    prev = current;
+                    current = current->getNext();
+                }
+            }
+            
+            // If no swaps occurred, list is sorted
+            if (!swapped) break;
+        }
+        
+        // Update tail pointer
+        updateTail();
+    }
+    
+    // Helper to get list size
+    int getListSize() {
+        int count = 0;
+        Component* current = head;
+        while (current != nullptr) {
+            count++;
+            current = current->getNext();
+        }
+        return count;
+    }
+    
+    // Helper to update tail pointer
+    void updateTail() {
+        if (head == nullptr) {
+            tail = nullptr;
+            return;
+        }
+        
+        Component* current = head;
+        while (current->getNext() != nullptr) {
+            current = current->getNext();
+        }
+        tail = current;
+    }
+    
+    void displaySearchResults() {
+        if (searchResultsHead == nullptr) {
+            cout << "No components found!\n";
+            return;
+        }
+        
+        int count = 0;
+        Component* current = searchResultsHead;
+        
+        cout << "\n=== SEARCH RESULTS ===" << endl;
+        
+        while (current != nullptr) {
+            count++;
+            current = current->getNext();
+        }
+        
+        cout << "Found " << count << " item(s)" << endl;
+        
+        if (count > 0) {
+            for (int i = 0; i < 59; i++) cout << "_";
+            cout << "\n";
+            cout << "|";
+            print_space(30);
+            cout << "|";
+            print_space(10);
+            cout << "|";
+            print_space(15);
+            cout << "|" << endl;
+            cout << "|  Name Component";
+            print_space(14);
+            cout << "| ";
+            cout << "Quantity ";
+            cout << "|  Price ($)";
+            print_space(4);
+            cout << "|" << endl;
+            cout << "|";
+            print_underScore(30);
+            cout << "|";
+            print_underScore(10);
+            cout << "|";
+            print_underScore(15);
+            cout << "|" << endl;
+
+            current = searchResultsHead;
+            int itemNumber = 1;
+            
+            while (current != nullptr) {
+                string name = current->getName();
+                int qty = current->getQuantity();
+                float price = current->getPrice();
+
+                cout << "|";
+                print_space(30);
+                cout << "|";
+
+                print_space(10);
+                cout << "|";
+                print_space(15);
+                cout << "|\n";
+                
+                string displayName = to_string(itemNumber) + ". " + name;
+                cout << "|  " << displayName;
+                print_space(30 - displayName.length() - 2);
+                cout << "| ";
+                cout << qty;
+                
+                if (qty < 10) print_space(8);
+                else if (qty < 100) print_space(7);
+                else if (qty < 1000) print_space(6);
+                else if (qty < 10000) print_space(5);
+                else print_space(4);
+                
+                cout << fixed << setprecision(2) << "| " << price;
+
+                if (price < 10) print_space(9);
+                else if (price < 100) print_space(8);
+                else if (price < 1000) print_space(7);
+                else if (price < 10000) print_space(6);
+                else if (price < 100000) print_space(5);
+                else print_space(4);
+                
+                cout << " |\n";
+                cout << "|";
+                print_underScore(30);
+                cout << "|";
+                print_underScore(10);
+                cout << "|";
+                print_underScore(15);
+                cout << "|\n";
+
+                current = current->getNext();
+                itemNumber++;
+            }
+        }
+        
+        cout << "==============================\n";
+    }
+    
+    void displaySingleComponent(Component* comp) {
+        cout << "Name: " << comp->getName() << "\n";
+        cout << "  Quantity: " << comp->getQuantity() << "\n";
+        cout << "  Price: $" << fixed << setprecision(2) << comp->getPrice() << "\n";
+    }
+    
+    Component* findComponentInMainList(Component* target) {
+        Component* current = head;
+        while (current != nullptr) {
+            if (current == target) {
+                return current;
+            }
+            current = current->getNext();
+        }
+        return nullptr;
+    }
+    
+    bool deleteFromMainList(Component* target) {
+        if (head == nullptr || target == nullptr) return false;
+        
+        Component* current = head;
+        Component* prev = nullptr;
+        
+        while (current != nullptr) {
+            if (current == target) {
+                if (prev == nullptr) {
+                    head = current->getNext();
+                    if (head == nullptr) tail = nullptr;
+                } else {
+                    prev->setNext(current->getNext());
+                    if (current == tail) {
+                        tail = prev;
+                    }
+                }
+                delete current;
+                return true;
+            }
+            prev = current;
+            current = current->getNext();
+        }
+        return false;
+    }
 
 public:
     Inventory()
     {
         head = nullptr;
         tail = nullptr;
+        searchResultsHead = nullptr;
+        searchResultsTail = nullptr;
     }
     ~Inventory()
     {
@@ -174,16 +509,15 @@ public:
             delete current;
             current = next;
         }
+        clearSearchResults();
     }
 
-    // Core operations
     void addComponent()
     {
         string name;
         int quantity;
         float price;
 
-        // Input name with validation
         do
         {
             inputName(name, 1);
@@ -211,37 +545,189 @@ public:
 
         cout << "Component added successfully!\n";
     }
+    
     void searchComponent()
     {
-        string searchName;
-        inputName(searchName, 0);
+        cout << "\n=== SEARCH OPTIONS ===\n";
+        cout << "1. Search by exact name\n";
+        cout << "2. Search by keyword/substring\n";
+        cout << "=====================\n";
+        cout << "Enter your choice: ";
+        
+        string choiceStr;
+        getline(cin, choiceStr);
+        
+        if (choiceStr == "1") {
+            string searchName;
+            inputName(searchName, 0);
 
-        Component *found = findComponent(searchName);
+            Component *found = findComponent(searchName);
 
-        if (found != nullptr)
-        {
-            cout << "Component found in system!\n";
-            cout << "Name: " << found->getName() << "\n";
-            cout << "Quantity: " << found->getQuantity() << "\n";
-            cout << "Price: $" << found->getPrice() << "\n";
-
-            char option = getYesNoOption(6, 'U', 'V');
-            if (option == 'U')
+            if (found != nullptr)
             {
-                // For update, we need non-const version
-                updateComponent(found);
+                cout << "\nComponent found!\n";
+                displaySingleComponent(found);
+
+                char option = getYesNoOption(6, 'U', 'V');
+                if (option == 'U')
+                {
+                    updateComponent(found);
+                }
             }
-        }
-        else
-        {
-            cout << "Component not found in system!\n";
-            char option = getYesNoOption(7, 'Y', 'N');
-            if (option == 'Y')
+            else
             {
-                addComponent();
+                cout << "Component not found!\n";
+                char option = getYesNoOption(7, 'Y', 'N');
+                if (option == 'Y')
+                {
+                    addComponent();
+                }
             }
+        } 
+        else if (choiceStr == "2") {
+            cout << "Enter search keyword: ";
+            string keyword;
+            getline(cin, keyword);
+            
+            if (keyword.empty()) {
+                cout << "Keyword cannot be empty!\n";
+                return;
+            }
+            
+            vector<Component*> results = findComponentsBySubstring(keyword);
+            createSearchResultsList(results);
+            displaySearchResults();
+            
+            if (searchResultsHead != nullptr) {
+                cout << "\nOptions:\n";
+                cout << "1. Update a component\n";
+                cout << "2. Delete a component\n";
+                cout << "3. View details of a component\n";
+                cout << "Enter choice (1-3) or any other key to cancel: ";
+                
+                string optionStr;
+                getline(cin, optionStr);
+                
+                if (optionStr == "1") {
+                    cout << "Enter the number of component to update: ";
+                    string numStr;
+                    getline(cin, numStr);
+                    
+                    try {
+                        int num = stoi(numStr);
+                        if (num >= 1) {
+                            Component* current = searchResultsHead;
+                            int count = 1;
+                            
+                            while (current != nullptr && count < num) {
+                                current = current->getNext();
+                                count++;
+                            }
+                            
+                            if (current != nullptr) {
+                                Component* mainComp = findComponent(current->getName());
+                                if (mainComp != nullptr) {
+                                    updateComponent(mainComp);
+                                    createSearchResultsList(findComponentsBySubstring(keyword));
+                                }
+                            } else {
+                                cout << "Invalid number!\n";
+                            }
+                        } else {
+                            cout << "Invalid number!\n";
+                        }
+                    } catch (...) {
+                        cout << "Invalid input!\n";
+                    }
+                } 
+                else if (optionStr == "2") {
+                    cout << "Enter the number of component to delete: ";
+                    string numStr;
+                    getline(cin, numStr);
+                    
+                    try {
+                        int num = stoi(numStr);
+                        if (num >= 1) {
+                            Component* current = searchResultsHead;
+                            Component* prev = nullptr;
+                            int count = 1;
+                            
+                            while (current != nullptr && count < num) {
+                                prev = current;
+                                current = current->getNext();
+                                count++;
+                            }
+                            
+                            if (current != nullptr) {
+                                char confirm = getYesNoOption(14, 'Y', 'N');
+                                if (confirm == 'Y') {
+                                    Component* mainComp = findComponent(current->getName());
+                                    if (mainComp != nullptr && deleteFromMainList(mainComp)) {
+                                        cout << "Component deleted successfully!\n";
+                                        
+                                        if (prev == nullptr) {
+                                            searchResultsHead = current->getNext();
+                                            if (searchResultsHead == nullptr) {
+                                                searchResultsTail = nullptr;
+                                            }
+                                        } else {
+                                            prev->setNext(current->getNext());
+                                            if (current == searchResultsTail) {
+                                                searchResultsTail = prev;
+                                            }
+                                        }
+                                        delete current;
+                                    }
+                                }
+                            } else {
+                                cout << "Invalid number!\n";
+                            }
+                        } else {
+                            cout << "Invalid number!\n";
+                        }
+                    } catch (...) {
+                        cout << "Invalid input!\n";
+                    }
+                }
+                else if (optionStr == "3") {
+                    cout << "Enter the number of component to view details: ";
+                    string numStr;
+                    getline(cin, numStr);
+                    
+                    try {
+                        int num = stoi(numStr);
+                        if (num >= 1) {
+                            Component* current = searchResultsHead;
+                            int count = 1;
+                            
+                            while (current != nullptr && count < num) {
+                                current = current->getNext();
+                                count++;
+                            }
+                            
+                            if (current != nullptr) {
+                                cout << "\n=== DETAILED VIEW ===\n";
+                                displaySingleComponent(current);
+                                cout << "===================\n";
+                            } else {
+                                cout << "Invalid number!\n";
+                            }
+                        } else {
+                            cout << "Invalid number!\n";
+                        }
+                    } catch (...) {
+                        cout << "Invalid input!\n";
+                    }
+                }
+                
+                clearSearchResults();
+            }
+        } 
+        else {
+            cout << "Invalid choice!\n";
         }
     }
+    
     void updateComponent(Component *component)
     {
         if (component == nullptr)
@@ -251,12 +737,10 @@ public:
         if (confirm != 'Y')
             return;
 
-        // Temporary storage for new values
         string newName;
         int newQuantity;
         float newPrice;
 
-        // Update name
         char updateName = getYesNoOption(1, 'Y', 'N');
         if (updateName == 'Y')
         {
@@ -275,7 +759,6 @@ public:
             } while (true);
         }
 
-        // Update quantity
         char updateQuantity = getYesNoOption(2, 'Y', 'N');
         if (updateQuantity == 'Y')
         {
@@ -295,7 +778,7 @@ public:
                 }
             }
             else
-            { // Decrease
+            {
                 if (currentQty - newQuantity >= 0)
                 {
                     component->setQuantity(currentQty - newQuantity);
@@ -307,7 +790,6 @@ public:
             }
         }
 
-        // Update price
         char updatePrice = getYesNoOption(3, 'Y', 'N');
         if (updatePrice == 'Y')
         {
@@ -328,6 +810,7 @@ public:
 
         cout << "Component updated successfully!\n";
     }
+    
     void deleteComponent()
     {
         if (isEmpty())
@@ -343,7 +826,6 @@ public:
 
         if (toDelete != nullptr)
         {
-            // Display component info
             cout << "Name Component: " << toDelete->getName() << "\n";
             cout << "Quantity Component: " << toDelete->getQuantity() << "\n";
             cout << "Price Component: $" << toDelete->getPrice() << "\n";
@@ -352,20 +834,16 @@ public:
 
             if (confirm == 'Y')
             {
-                // Handle different deletion cases
                 if (toDelete == head && toDelete == tail)
                 {
-                    // Only one component in list
                     head = tail = nullptr;
                 }
                 else if (toDelete == head)
                 {
-                    // Delete first component
                     head = toDelete->getNext();
                 }
                 else if (toDelete == tail)
                 {
-                    // Delete last component
                     Component *current = head;
                     while (current->getNext() != tail)
                     {
@@ -376,7 +854,6 @@ public:
                 }
                 else
                 {
-                    // Delete middle component
                     Component *current = head;
                     while (current->getNext() != toDelete)
                     {
@@ -398,6 +875,54 @@ public:
             cout << "Component not found in the system!\n";
         }
     }
+    
+    // UPDATED: Sort function with options asked inside
+    void sortInventory() {
+        if (isEmpty() || !head->getNext()) {
+            cout << "Not enough components to sort!\n";
+            return;
+        }
+        
+        cout << "\n=== SORT INVENTORY ===\n";
+        
+        // Ask for sort by option (using new function)
+        char sortBy = getSortChoice(
+            "Sort by:\n"
+            "N - Name\n"
+            "Q - Quantity\n"
+            "P - Price\n"
+            "Enter your choice (N/Q/P): ",
+            {'N', 'Q', 'P'}
+        );
+        
+        // Ask for sort order option (using new function)
+        char order = getSortChoice(
+            "\nSort order:\n"
+            "A - Ascending (A-Z, 0-9, low to high)\n"
+            "D - Descending (Z-A, 9-0, high to low)\n"
+            "Enter your choice (A/D): ",
+            {'A', 'D'}
+        );
+        
+        // Convert choices to parameters
+        int sortOption;
+        if (sortBy == 'N') sortOption = 0;      // Name
+        else if (sortBy == 'Q') sortOption = 1; // Quantity
+        else sortOption = 2;                    // Price
+        
+        bool ascending = (order == 'A');
+        
+        // Perform bubble sort
+        bubbleSort(sortOption, ascending);
+        
+        cout << "\nInventory sorted successfully!\n";
+        cout << "Sorted by: ";
+        if (sortOption == 0) cout << "Name";
+        else if (sortOption == 1) cout << "Quantity";
+        else cout << "Price";
+        cout << " (" << (ascending ? "Ascending" : "Descending") << ")\n";
+    }
+    
     void displayAll()
     {
         if (isEmpty())
@@ -406,7 +931,6 @@ public:
             return;
         }
 
-        // Display header
         for (int i = 0; i < 59; i++)
             cout << "_";
         cout << "\n";
@@ -439,7 +963,6 @@ public:
             int qty = current->getQuantity();
             float price = current->getPrice();
 
-            // Format the output to match your original table design
             cout << "|";
             print_space(30);
             cout << "|";
@@ -489,7 +1012,6 @@ public:
         }
     }
 
-    // File operations
     void saveToFile(const string &filename)
     {
         ofstream file(filename);
@@ -515,7 +1037,7 @@ public:
         ifstream file(filename);
         if (!file.is_open())
         {
-            return; // No file to load is not an error
+            return;
         }
 
         string line;
@@ -556,7 +1078,6 @@ public:
         file.close();
     }
 
-    // Sales related
     Component *findComponentForSale(const string &name)
     {
         return findComponent(name);
@@ -570,7 +1091,6 @@ public:
         }
     }
 
-    // Utility
     bool isEmpty()
     {
         return head == nullptr;
@@ -609,6 +1129,9 @@ public:
             cout << "_";
     }
 
-    // For sales class access
     Component *getHead() { return head; }
+    Component* getSearchResultsHead() { return searchResultsHead; }
+    void displaySearchResultsOnly() {
+        displaySearchResults();
+    }
 };
